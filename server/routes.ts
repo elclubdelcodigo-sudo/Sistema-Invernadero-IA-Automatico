@@ -55,6 +55,40 @@ router.get('/naves/:id', (req: Request, res: Response) => {
   });
 });
 
+// Delete a single nave
+router.delete('/naves/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const user = req.body.user || (req.query.user as string) || 'Administrador';
+  const deleted = db.deleteNave(id, user);
+  if (!deleted) {
+    return res.status(404).json({ success: false, error: `Nave ${id} no encontrada` });
+  }
+  res.json({ success: true, message: `Nave ${id} eliminada correctamente` });
+});
+
+// Delete multiple or all naves
+router.delete('/naves', (req: Request, res: Response) => {
+  const { ids, all, user = 'Administrador' } = req.body;
+  if (all === true) {
+    const total = db.deleteAllNaves(user);
+    return res.json({ success: true, message: `Se han eliminado todas las ${total} naves del sistema`, deletedCount: total });
+  }
+
+  if (Array.isArray(ids) && ids.length > 0) {
+    const deletedCount = db.deleteMultipleNaves(ids, user);
+    return res.json({ success: true, message: `Se han eliminado ${deletedCount} naves seleccionadas`, deletedCount });
+  }
+
+  return res.status(400).json({ success: false, error: 'Debe especificar "ids" o "all: true"' });
+});
+
+// Reset / restore default 125 naves
+router.post('/naves/reset', (req: Request, res: Response) => {
+  const user = req.body.user || 'Administrador';
+  const naves = db.resetDefaultNaves(user);
+  res.json({ success: true, message: 'Se han restaurado las 125 naves por defecto', total: naves.length, naves });
+});
+
 // Update automation rule for a nave
 router.post('/naves/:id/automation', (req: Request, res: Response) => {
   const { id } = req.params;
@@ -64,6 +98,71 @@ router.post('/naves/:id/automation', (req: Request, res: Response) => {
     return res.status(404).json({ error: 'Nave no encontrada' });
   }
   res.json({ success: true, automationRule: updated });
+});
+
+// Update ESP32 hardware role & connection config for a single nave
+router.post('/naves/:id/esp32', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const user = req.body.user || 'Cristian Reyes (Operador)';
+  const updated = db.updateEsp32Config(id, req.body, user);
+  if (!updated) {
+    return res.status(404).json({ success: false, error: 'Nave no encontrada' });
+  }
+  res.json({ success: true, esp32Config: updated, message: `ESP32 de ${id} reconfigurado con éxito.` });
+});
+
+// Bulk update ESP32 role & config for all or multiple naves ("modificalo para todas las naves")
+router.post('/naves/esp32/bulk', (req: Request, res: Response) => {
+  const { role, target = 'ALL', ids = [], config = {}, user = 'Administrador' } = req.body;
+  if (!role) {
+    return res.status(400).json({ success: false, error: 'El rol de ESP32 es obligatorio (SENSOR_ANTENNA, CONTROL_PANEL o HYBRID).' });
+  }
+  const result = db.updateEsp32ConfigBulk({ role, target, ids, config, user });
+  res.json({
+    success: true,
+    message: target === 'ALL' 
+      ? `Configuración aplicada con éxito a TODAS las ${result.updatedCount} naves del sistema.`
+      : `Configuración aplicada a ${result.updatedCount} naves seleccionadas.`,
+    ...result
+  });
+});
+
+// Test hardware connection / ping to ESP32
+router.post('/naves/:id/esp32/test', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const diagnostic = db.testEsp32Connection(id);
+  res.json(diagnostic);
+});
+
+// Hardware Modules (Antenas de Sensor & Paneles de Control) per Nave
+router.post('/naves/:id/hardware-modules', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const user = req.body.user || 'Administrador';
+  const result = db.addHardwareModule(id, req.body, user);
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+  res.json(result);
+});
+
+router.delete('/naves/:id/hardware-modules/:moduleId', (req: Request, res: Response) => {
+  const { id, moduleId } = req.params;
+  const user = req.body.user || (req.query.user as string) || 'Administrador';
+  const result = db.removeHardwareModule(id, moduleId, user);
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+  res.json(result);
+});
+
+// Provision new hardware device (Antena de Sensor / Panel de Control)
+router.post('/devices', (req: Request, res: Response) => {
+  const user = req.body.user || 'Administrador';
+  const result = db.provisionNewDevice({ ...req.body, user });
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+  res.json(result);
 });
 
 // 3. Devices inventory
@@ -162,7 +261,45 @@ router.post('/telemetry', (req: Request, res: Response) => {
 
 // 5. Irrigation Control
 router.post('/irrigation', (req: Request, res: Response) => {
-  const { greenhouseId, action, durationMinutes, user } = req.body;
+  const { greenhouseId, ids, action, durationMinutes, user } = req.body;
+
+  // Support mass irrigation on all or multiple naves
+  if (greenhouseId === 'ALL' || Array.isArray(ids)) {
+    const targetNaves = Array.isArray(ids) && ids.length > 0
+      ? db.naves.filter(n => ids.includes(n.id))
+      : db.naves;
+
+    if (action === 'start') {
+      let started = 0;
+      for (const n of targetNaves) {
+        if (n.status !== 'ALARMA') {
+          db.startIrrigation(n.id, durationMinutes || 20, user || 'Operador Terreno');
+          started++;
+        }
+      }
+      return res.status(200).json({
+        success: true,
+        message: `Riego iniciado de forma segura en ${started} naves (${durationMinutes || 20} min).`,
+        count: started
+      });
+    } else if (action === 'stop') {
+      let stopped = 0;
+      for (const n of targetNaves) {
+        if (n.status === 'REGANDO' || n.valveStatus === 'ABIERTA' || n.activeIrrigation) {
+          db.stopIrrigation(n.id, user || 'Operador Terreno', 'DETENIDO_POR_USUARIO');
+          stopped++;
+        }
+      }
+      return res.status(200).json({
+        success: true,
+        message: stopped > 0
+          ? `Riego detenido exitosamente en ${stopped} naves.`
+          : `Todas las electroválvulas están cerradas de forma segura.`,
+        count: stopped
+      });
+    }
+  }
+
   if (action === 'start') {
     const result = db.startIrrigation(greenhouseId, durationMinutes || 20, user || 'Operador Terreno');
     return res.status(result.success ? 200 : 400).json(result);

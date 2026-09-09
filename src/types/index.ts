@@ -8,6 +8,52 @@ export type AlertState = 'ACTIVA' | 'RECONOCIDA' | 'RESUELTA';
 export type CommandStatus = 'PENDING' | 'SENT' | 'DELIVERED' | 'EXECUTED' | 'FAILED';
 export type UserRole = 'Administrador' | 'Operador' | 'Visualización';
 
+// Configuración y roles del microcontrolador ESP32 por Nave
+export type Esp32Role = 'SENSOR_ANTENNA' | 'CONTROL_PANEL' | 'HYBRID';
+export type Esp32ConnectionType = 'LORAWAN' | 'WIFI' | 'USB_SERIAL' | 'BLUETOOTH';
+
+// Módulos específicos de hardware (Antenas de Sensor y Paneles de Control)
+export type HardwareModuleType = 'SENSOR_ANTENNA' | 'CONTROL_PANEL';
+
+export interface HardwareModule {
+  id: string; // e.g. 'ANT_001_A' o 'PANEL_001_B'
+  name: string; // e.g. 'Antena Sonda Suelo Principal' o 'Panel de Mando Cabecera'
+  type: HardwareModuleType;
+  devEui: string;
+  status: 'ONLINE' | 'OFFLINE' | 'STANDBY';
+  connectionType: Esp32ConnectionType;
+  batteryVoltage?: number; // e.g. 3.6V (Li-SOCl2) o 24V DC
+  rssi?: number; // dBm
+  snr?: number; // dB
+  gatewayId?: string;
+  samplingIntervalSec?: number;
+  details: string; // Descripción técnica de pines/sensores
+  pinConfig?: {
+    relayPin?: number;
+    flowSensorPin?: number;
+    soilPins?: number[];
+    ds18b20Pin?: number;
+  };
+  hasPhysicalKeypad?: boolean;
+  hasOledDisplay?: boolean;
+  installedAt: string;
+}
+
+export interface Esp32Config {
+  role: Esp32Role; // 'SENSOR_ANTENNA': Antena de sensor / 'CONTROL_PANEL': Panel de mando / 'HYBRID': Ambos
+  connected: boolean;
+  connectionType: Esp32ConnectionType;
+  ipAddress?: string; // e.g. 192.168.4.1 (modo AP o IP de campo)
+  samplingIntervalSec: number; // e.g. 60, 120, 300 segundos
+  hasPhysicalKeypad: boolean; // Pulsadores físicos de mando en entrada de nave
+  hasOledDisplay: boolean; // Display OLED de estado local
+  relayPin: number; // Pin GPIO para electroválvula (ej. GPIO 25)
+  flowSensorPin: number; // Pin GPIO para sensor de caudal por pulsos (ej. GPIO 14)
+  soilSensorPins: number[]; // e.g. [34, 35] ADC1
+  firmwareVersion: string;
+  lastSyncAt: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -43,6 +89,12 @@ export interface Nave {
   devEui: string;
   appEui: string;
   firmwareVersion: string;
+
+  // Configuración hardware ESP32
+  esp32Config?: Esp32Config;
+  
+  // Módulos específicos de hardware (Antenas de sensor y Paneles de control vinculados)
+  hardwareModules?: HardwareModule[];
   
   // Coordinates for Field Map
   x: number; // Grid or normalized X (0-100)
@@ -141,7 +193,8 @@ export interface DeviceCommand {
     | 'SET_IRRIGATION_LIMIT'
     | 'REQUEST_STATUS'
     | 'REBOOT'
-    | 'UPDATE_CONFIG';
+    | 'UPDATE_CONFIG'
+    | 'SET_ESP32_ROLE';
   payload: Record<string, any>;
   status: CommandStatus;
   sentBy: string;

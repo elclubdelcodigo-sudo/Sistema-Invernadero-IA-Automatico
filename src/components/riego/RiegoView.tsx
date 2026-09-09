@@ -15,6 +15,8 @@ import {
   Download,
   ShieldAlert
 } from 'lucide-react';
+import { BulkIrrigationModal } from './BulkIrrigationModal';
+import { StopAllIrrigationModal } from './StopAllIrrigationModal';
 
 export const RiegoView: React.FC = () => {
   const {
@@ -23,10 +25,14 @@ export const RiegoView: React.FC = () => {
     irrigationHistory,
     stopIrrigation,
     requestManualIrrigation,
+    startAllIrrigations,
+    stopAllIrrigations,
     setSelectedNaveId
   } = useFarm();
   const { canPerformIrrigation } = useAuth();
   const [filterResult, setFilterResult] = useState<string>('TODOS');
+  const [showBulkModal, setShowBulkModal] = useState<boolean>(false);
+  const [showStopAllModal, setShowStopAllModal] = useState<boolean>(false);
 
   // Format countdown mm:ss
   const formatTimer = (seconds?: number) => {
@@ -58,15 +64,48 @@ export const RiegoView: React.FC = () => {
           </p>
         </div>
 
-        {/* Global Consumption Badge */}
-        <div className="flex items-center gap-3 bg-blue-950/40 light:bg-blue-50 border border-blue-900/50 light:border-blue-200 px-4 py-2 rounded-2xl">
-          <Droplets className="w-5 h-5 text-blue-400 animate-pulse" />
-          <div>
-            <div className="text-[10px] text-blue-300 light:text-blue-700 font-bold uppercase tracking-wider">
-              Consumo Total Acumulado
-            </div>
-            <div className="text-lg font-black font-mono text-blue-400 light:text-blue-800">
-              {(totalLitersToday / 1000).toFixed(2)} m³ <span className="text-xs font-normal">({Math.round(totalLitersToday).toLocaleString()} L)</span>
+        {/* Action Controls & Global Consumption Badge */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Botón: Regar Todas las Naves */}
+          <button
+            id="btn-riego-irrigate-all"
+            onClick={() => setShowBulkModal(true)}
+            className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-blue-600/25 transition-all"
+            title="Activar riego simultáneo en todas las naves"
+          >
+            <Droplets className="w-4 h-4" />
+            <span>Regar Todas ({naves.length})</span>
+          </button>
+
+          {/* Botón: Detener Todas las Naves */}
+          <button
+            id="btn-riego-stop-all"
+            onClick={() => setShowStopAllModal(true)}
+            className={`px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all border ${
+              activeIrrigations.length > 0
+                ? 'bg-rose-600 hover:bg-rose-500 text-white border-rose-500 shadow-md shadow-rose-600/30 animate-pulse'
+                : 'bg-rose-950/30 hover:bg-rose-900/50 text-rose-300 border-rose-900/50'
+            }`}
+            title="Detener de inmediato todas las electroválvulas"
+          >
+            <Square className="w-4 h-4 fill-current text-rose-400" />
+            <span>
+              {activeIrrigations.length > 0
+                ? `Detener Todas (${activeIrrigations.length} activas)`
+                : 'Detener Todas'}
+            </span>
+          </button>
+
+          {/* Global Consumption Badge */}
+          <div className="flex items-center gap-3 bg-blue-950/40 light:bg-blue-50 border border-blue-900/50 light:border-blue-200 px-4 py-2 rounded-2xl">
+            <Droplets className="w-5 h-5 text-blue-400 animate-pulse" />
+            <div>
+              <div className="text-[10px] text-blue-300 light:text-blue-700 font-bold uppercase tracking-wider">
+                Consumo Total Acumulado
+              </div>
+              <div className="text-lg font-black font-mono text-blue-400 light:text-blue-800">
+                {(totalLitersToday / 1000).toFixed(2)} m³ <span className="text-xs font-normal">({Math.round(totalLitersToday).toLocaleString()} L)</span>
+              </div>
             </div>
           </div>
         </div>
@@ -242,6 +281,28 @@ export const RiegoView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Bulk Irrigation Modal */}
+      <BulkIrrigationModal
+        isOpen={showBulkModal}
+        onClose={() => setShowBulkModal(false)}
+        count={naves.length}
+        mode="ALL"
+        onConfirm={async (mins) => {
+          await startAllIrrigations(mins);
+        }}
+      />
+
+      {/* Stop All Modal */}
+      <StopAllIrrigationModal
+        isOpen={showStopAllModal}
+        onClose={() => setShowStopAllModal(false)}
+        activeCount={activeIrrigations.length}
+        totalNaves={naves.length}
+        onConfirm={async () => {
+          await stopAllIrrigations();
+        }}
+      />
     </div>
   );
 };

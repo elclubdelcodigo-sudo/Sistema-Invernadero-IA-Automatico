@@ -15,7 +15,8 @@ import {
   ArrowUpRight,
   TrendingUp,
   Sparkles,
-  Compass
+  Compass,
+  BarChart3
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -45,6 +46,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 }) => {
   const { metrics, alerts, activeIrrigations, setSelectedNaveId, stopIrrigation } = useFarm();
   const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d' | 'custom'>('24h');
+  const [chart1Type, setChart1Type] = useState<'bar' | 'area'>('bar');
 
   if (!metrics) {
     return (
@@ -316,39 +318,93 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Chart 1: Temperatura promedio & Humedad ambiental */}
         <div className="p-5 rounded-2xl bg-slate-900 light:bg-white border border-slate-800 light:border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center justify-between text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
             <div>
               <h3 className="font-bold text-slate-100 light:text-slate-900 text-sm">
                 Temperatura & Humedad Ambiental Promedio
               </h3>
               <p className="text-slate-400 light:text-slate-500 text-[11px]">Sensores SHT31/SHT35 calibrados</p>
             </div>
-            <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-800 light:bg-slate-100 text-slate-300 light:text-slate-700">
-              Campo General
-            </span>
+            
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-800 light:bg-slate-100 text-slate-300 light:text-slate-700 hidden sm:inline">
+                Campo General
+              </span>
+
+              {/* Style selector: Barras vs Áreas */}
+              <div className="inline-flex items-center bg-slate-950/80 light:bg-slate-100 p-1 rounded-xl border border-slate-800 light:border-slate-300">
+                <button
+                  type="button"
+                  onClick={() => setChart1Type('bar')}
+                  className={`px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 transition-all ${
+                    chart1Type === 'bar'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 light:hover:text-slate-800'
+                  }`}
+                  title="Mostrar en gráfico de barras"
+                >
+                  <BarChart3 className="w-3.5 h-3.5" />
+                  <span>Barras</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChart1Type('area')}
+                  className={`px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 transition-all ${
+                    chart1Type === 'area'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 light:hover:text-slate-800'
+                  }`}
+                  title="Mostrar en gráfico de áreas"
+                >
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>Áreas</span>
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.4}/>
-                    <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorHum" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.4}/>
-                    <stop offset="95%" stopColor="#38bdf8" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.4} />
-                <XAxis dataKey="label" stroke="#64748b" fontSize={11} />
-                <YAxis stroke="#64748b" fontSize={11} />
-                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '12px' }} />
-                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
-                <Area type="monotone" dataKey="temp" name="Temperatura (°C)" stroke="#f43f5e" strokeWidth={2} fillOpacity={1} fill="url(#colorTemp)" />
-                <Area type="monotone" dataKey="hum" name="Humedad (%)" stroke="#38bdf8" strokeWidth={2} fillOpacity={1} fill="url(#colorHum)" />
-              </AreaChart>
+              {chart1Type === 'bar' ? (
+                <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.3} />
+                  <XAxis dataKey="label" stroke="#64748b" fontSize={11} tickLine={false} />
+                  <YAxis stroke="#64748b" fontSize={11} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#0f172a',
+                      borderColor: '#334155',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      color: '#f8fafc'
+                    }}
+                    cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                  <Bar dataKey="temp" name="Temperatura (°C)" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={22} />
+                  <Bar dataKey="hum" name="Humedad (%)" fill="#38bdf8" radius={[4, 4, 0, 0]} maxBarSize={22} />
+                </BarChart>
+              ) : (
+                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorHum" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#38bdf8" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.4} />
+                  <XAxis dataKey="label" stroke="#64748b" fontSize={11} />
+                  <YAxis stroke="#64748b" fontSize={11} />
+                  <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '12px' }} />
+                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                  <Area type="monotone" dataKey="temp" name="Temperatura (°C)" stroke="#f43f5e" strokeWidth={2} fillOpacity={1} fill="url(#colorTemp)" />
+                  <Area type="monotone" dataKey="hum" name="Humedad (%)" stroke="#38bdf8" strokeWidth={2} fillOpacity={1} fill="url(#colorHum)" />
+                </AreaChart>
+              )}
             </ResponsiveContainer>
           </div>
         </div>

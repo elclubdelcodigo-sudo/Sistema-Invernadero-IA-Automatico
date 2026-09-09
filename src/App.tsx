@@ -7,6 +7,7 @@ import { QuickStatsBar } from './components/layout/QuickStatsBar';
 import { Sidebar, NavSection } from './components/layout/Sidebar';
 import { NaveDetailModal } from './components/naves/NaveDetailModal';
 import { ManualIrrigationModal } from './components/riego/ManualIrrigationModal';
+import { Esp32ConfigModal } from './components/dispositivos/Esp32ConfigModal';
 
 // Views
 import { DashboardView } from './components/dashboard/DashboardView';
@@ -32,6 +33,7 @@ const MainAppContent: React.FC = () => {
     setSelectedNaveId,
     irrigationModalTarget,
     setIrrigationModalTarget,
+    esp32ModalTarget,
     notification
   } = useFarm();
 
@@ -111,6 +113,9 @@ const MainAppContent: React.FC = () => {
           onClose={() => setIrrigationModalTarget(null)}
         />
       )}
+
+      {/* ESP32 Microcontroller Role & Connection Configuration Modal */}
+      {esp32ModalTarget && <Esp32ConfigModal />}
     </div>
   );
 };

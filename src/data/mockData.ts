@@ -13,7 +13,7 @@ export const generateInitialNaves = (): Nave[] => {
     return 'Batería 6 (Este)';
   };
   
-  // Seed the 125 naves
+  // Seed the 125 regular production naves
   for (let i = 1; i <= 125; i++) {
     const id = `NAVE_${String(i).padStart(3, '0')}`;
     const sector = getBatterySector(i);
@@ -120,9 +120,175 @@ export const generateInitialNaves = (): Nave[] => {
         enabled: true,
         syncedWithEsp32: true,
         lastSyncedAt: new Date(Date.now() - 3600000).toISOString()
-      }
+      },
+      esp32Config: {
+        role: (i % 3 === 0 ? 'CONTROL_PANEL' : i % 3 === 1 ? 'SENSOR_ANTENNA' : 'HYBRID'),
+        connected: status !== 'OFFLINE',
+        connectionType: 'LORAWAN',
+        ipAddress: `192.168.4.${10 + (i % 200)}`,
+        samplingIntervalSec: 120,
+        hasPhysicalKeypad: i % 2 === 0,
+        hasOledDisplay: true,
+        relayPin: 25,
+        flowSensorPin: 14,
+        soilSensorPins: [34, 35],
+        firmwareVersion: 'v2.4.2-esp32',
+        lastSyncAt: new Date(Date.now() - (i * 30000)).toISOString()
+      },
+      hardwareModules: [
+        {
+          id: `ANT_${id}_01`,
+          name: `Antena Sensor Suelo & Clima #${String(i).padStart(3, '0')}`,
+          type: 'SENSOR_ANTENNA',
+          devEui: `70B3D57ED1${String(i).padStart(6, '0')}`,
+          status: status === 'OFFLINE' ? 'OFFLINE' : 'ONLINE',
+          connectionType: 'LORAWAN',
+          batteryVoltage: 3.6,
+          rssi: rssi,
+          snr: Number(snr.toFixed(1)),
+          gatewayId: i <= 60 ? 'GW_LORA_CENTRO_01' : 'GW_LORA_SUR_02',
+          samplingIntervalSec: 120,
+          details: 'Sonda capacitiva suelo dual (30cm/60cm) + Sensor ambiental SHT31',
+          pinConfig: { soilPins: [34, 35], ds18b20Pin: 4 },
+          installedAt: '2026-02-15'
+        },
+        {
+          id: `PANEL_${id}_01`,
+          name: `Panel de Mando Cabecera #${String(i).padStart(3, '0')}`,
+          type: 'CONTROL_PANEL',
+          devEui: `70B3D57ED2${String(i).padStart(6, '0')}`,
+          status: status === 'OFFLINE' ? 'OFFLINE' : 'ONLINE',
+          connectionType: 'LORAWAN',
+          batteryVoltage: 24.0,
+          rssi: rssi + 2,
+          snr: Number((snr + 0.4).toFixed(1)),
+          gatewayId: i <= 60 ? 'GW_LORA_CENTRO_01' : 'GW_LORA_SUR_02',
+          samplingIntervalSec: 60,
+          details: 'Actuador relé 24VAC (GPIO 25), Caudalímetro pulsos (GPIO 14), Botonera física y OLED',
+          pinConfig: { relayPin: 25, flowSensorPin: 14 },
+          hasPhysicalKeypad: true,
+          hasOledDisplay: true,
+          installedAt: '2026-02-15'
+        }
+      ]
     });
   }
+
+  // Add the 3 Almácigos / Nursery Greenhouses visible on the East Complex
+  const almacigosData = [
+    {
+      id: 'ALM_01',
+      name: 'Almácigo 01 — Germinación & Siembra',
+      sector: 'Sector Almácigos',
+      status: 'REGANDO' as Nave['status'],
+      valveStatus: 'ABIERTA' as Nave['valveStatus'],
+      temp: 24.8,
+      hum: 84,
+      soil1: 72,
+      soil2: 70,
+      flow: 5.2,
+      pressure: 2.8,
+      voltage: 24.1,
+      devEui: '70B3D57ED0ALM001'
+    },
+    {
+      id: 'ALM_02',
+      name: 'Almácigo 02 — Microaspersión & Cámara',
+      sector: 'Sector Almácigos',
+      status: 'ONLINE' as Nave['status'],
+      valveStatus: 'CERRADA' as Nave['valveStatus'],
+      temp: 23.9,
+      hum: 82,
+      soil1: 68,
+      soil2: 66,
+      flow: 0.0,
+      pressure: 2.7,
+      voltage: 24.0,
+      devEui: '70B3D57ED0ALM002'
+    },
+    {
+      id: 'ALM_03',
+      name: 'Almácigo 03 — Enraizamiento & Rustificación',
+      sector: 'Sector Almácigos',
+      status: 'ONLINE' as Nave['status'],
+      valveStatus: 'CERRADA' as Nave['valveStatus'],
+      temp: 23.2,
+      hum: 76,
+      soil1: 64,
+      soil2: 62,
+      flow: 0.0,
+      pressure: 2.6,
+      voltage: 23.9,
+      devEui: '70B3D57ED0ALM003'
+    }
+  ];
+
+  almacigosData.forEach((alm, idx) => {
+    naves.push({
+      id: alm.id,
+      name: alm.name,
+      sector: alm.sector,
+      status: alm.status,
+      controlMode: 'AUTO',
+      valveStatus: alm.valveStatus,
+      temperature: alm.temp,
+      humidity: alm.hum,
+      soilMoisture1: alm.soil1,
+      soilMoisture2: alm.soil2,
+      soilTemperature: Number((alm.temp - 2.2).toFixed(1)),
+      flowRate: alm.flow,
+      pressure: alm.pressure,
+      voltage: alm.voltage,
+      rssi: -65 - idx * 2,
+      snr: 9.8,
+      lastCommunication: 'Hace 5 segundos',
+      gatewayId: 'GW_LORA_CENTRO_01',
+      devEui: alm.devEui,
+      appEui: '0000000000000001',
+      firmwareVersion: 'v2.4.0-prod',
+      x: 92,
+      y: 75 + idx * 7,
+      latitude: -33.4578 + (idx * 0.0003),
+      longitude: -70.6470,
+      activeIrrigation: alm.status === 'REGANDO' ? {
+        startedAt: new Date(Date.now() - 4 * 60 * 1000).toISOString(),
+        targetMinutes: 15,
+        remainingSeconds: 660,
+        accumulatedLiters: 20.8,
+        initiatedBy: 'Regla Auto Microaspersión (Hum < 80%)'
+      } : undefined,
+      automationRule: {
+        id: `RULE_${alm.id}`,
+        greenhouseId: alm.id,
+        minSoilMoisture: 60,
+        targetSoilMoisture: 80,
+        maxIrrigationMinutes: 15,
+        timeWindows: [
+          { start: '06:00', end: '11:00' },
+          { start: '14:00', end: '19:00' }
+        ],
+        minPressureBar: 2.2,
+        minFlowDetectionSec: 30,
+        enabled: true,
+        syncedWithEsp32: true,
+        lastSyncedAt: new Date(Date.now() - 1800000).toISOString()
+      },
+      esp32Config: {
+        role: 'HYBRID',
+        connected: true,
+        connectionType: 'LORAWAN',
+        ipAddress: `192.168.4.${201 + idx}`,
+        samplingIntervalSec: 60,
+        hasPhysicalKeypad: true,
+        hasOledDisplay: true,
+        relayPin: 25,
+        flowSensorPin: 14,
+        soilSensorPins: [34, 35],
+        firmwareVersion: 'v2.4.2-esp32',
+        lastSyncAt: new Date().toISOString()
+      }
+    });
+  });
 
   return naves;
 };

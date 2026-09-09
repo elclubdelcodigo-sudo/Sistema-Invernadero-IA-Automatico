@@ -1,7 +1,13 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { Nave, Alert, DashboardMetrics, IrrigationEvent } from '../types';
+import { Nave, Alert, DashboardMetrics, IrrigationEvent, Esp32Config, Esp32Role, HardwareModule } from '../types';
 import { api } from '../services/api';
 import { useAuth } from './AuthContext';
+
+export interface Esp32ModalTarget {
+  targetMode: 'SINGLE' | 'ALL' | 'SELECTED';
+  nave?: Nave;
+  ids?: string[];
+}
 
 interface FarmContextType {
   naves: Nave[];
@@ -19,12 +25,38 @@ interface FarmContextType {
   requestManualIrrigation: (nave: Nave) => void;
   confirmManualIrrigation: (naveId: string, durationMinutes: number) => Promise<boolean>;
   stopIrrigation: (naveId: string) => Promise<boolean>;
+  startAllIrrigations: (durationMinutes?: number, targetIds?: string[]) => Promise<boolean>;
+  stopAllIrrigations: (targetIds?: string[]) => Promise<boolean>;
   irrigationModalTarget: Nave | null;
   setIrrigationModalTarget: (nave: Nave | null) => void;
+
+  // ESP32 Microcontroller Configuration Modal & Actions
+  esp32ModalTarget: Esp32ModalTarget | null;
+  setEsp32ModalTarget: (target: Esp32ModalTarget | null) => void;
+  configureEsp32: (naveId: string, config: Partial<Esp32Config>) => Promise<boolean>;
+  configureEsp32Bulk: (params: { role: Esp32Role; target?: 'ALL' | 'SELECTED'; ids?: string[]; config?: Partial<Esp32Config> }) => Promise<boolean>;
+  testEsp32Connection: (naveId: string) => Promise<any>;
 
   // Alerts
   recognizeAlert: (alertId: string) => Promise<void>;
   resolveAlert: (alertId: string) => Promise<void>;
+
+  // Nave Management & Deletion
+  deleteNave: (naveId: string) => Promise<boolean>;
+  deleteMultipleNaves: (naveIds: string[]) => Promise<boolean>;
+  deleteAllNaves: () => Promise<boolean>;
+  resetDefaultNaves: () => Promise<boolean>;
+
+  // Hardware Modules & Devices Provisioning
+  addHardwareModule: (naveId: string, moduleData: Partial<HardwareModule>) => Promise<boolean>;
+  removeHardwareModule: (naveId: string, moduleId: string) => Promise<boolean>;
+  provisionDevice: (data: {
+    type: 'SENSOR_ANTENNA' | 'CONTROL_PANEL' | 'HYBRID';
+    name: string;
+    sector: string;
+    naveId?: string;
+    devEui?: string;
+  }) => Promise<boolean>;
 
   // Filter & Search
   searchTerm: string;
@@ -49,6 +81,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [irrigationHistory, setIrrigationHistory] = useState<IrrigationEvent[]>([]);
   const [selectedNaveId, setSelectedNaveId] = useState<string | null>(null);
   const [irrigationModalTarget, setIrrigationModalTarget] = useState<Nave | null>(null);
+  const [esp32ModalTarget, setEsp32ModalTarget] = useState<Esp32ModalTarget | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Filters
@@ -134,6 +167,54 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const startAllIrrigations = async (durationMinutes: number = 20, targetIds?: string[]): Promise<boolean> => {
+    try {
+      const isSelective = Array.isArray(targetIds) && targetIds.length > 0;
+      const res = await api.controlIrrigation(
+        isSelective ? 'BULK' : 'ALL',
+        'start',
+        durationMinutes,
+        currentUser.name,
+        targetIds
+      );
+      if (res.success) {
+        showNotification(res.message, 'success');
+        await refreshData();
+        return true;
+      } else {
+        showNotification(res.message || 'Error al iniciar riego masivo', 'error');
+        return false;
+      }
+    } catch (err: any) {
+      showNotification(err.message || 'Error al conectar con las válvulas', 'error');
+      return false;
+    }
+  };
+
+  const stopAllIrrigations = async (targetIds?: string[]): Promise<boolean> => {
+    try {
+      const isSelective = Array.isArray(targetIds) && targetIds.length > 0;
+      const res = await api.controlIrrigation(
+        isSelective ? 'BULK' : 'ALL',
+        'stop',
+        0,
+        currentUser.name,
+        targetIds
+      );
+      if (res.success) {
+        showNotification(res.message, 'info');
+        await refreshData();
+        return true;
+      } else {
+        showNotification(res.message || 'Error al detener riego masivo', 'error');
+        return false;
+      }
+    } catch (err: any) {
+      showNotification(err.message || 'Error al detener válvulas', 'error');
+      return false;
+    }
+  };
+
   const recognizeAlert = async (alertId: string) => {
     try {
       await api.updateAlert(alertId, 'recognize', currentUser.name);
@@ -154,6 +235,194 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const deleteNave = async (naveId: string): Promise<boolean> => {
+    try {
+      const res = await api.deleteNave(naveId, currentUser.name);
+      if (res.success) {
+        showNotification(res.message, 'success');
+        if (selectedNaveId === naveId) setSelectedNaveId(null);
+        await refreshData();
+        return true;
+      } else {
+        showNotification(res.message || 'Error al eliminar nave', 'error');
+        return false;
+      }
+    } catch (err: any) {
+      showNotification(err.message || 'Error al eliminar nave', 'error');
+      return false;
+    }
+  };
+
+  const deleteMultipleNaves = async (naveIds: string[]): Promise<boolean> => {
+    try {
+      const res = await api.deleteMultipleNaves(naveIds, currentUser.name);
+      if (res.success) {
+        showNotification(res.message, 'success');
+        if (selectedNaveId && naveIds.includes(selectedNaveId)) setSelectedNaveId(null);
+        await refreshData();
+        return true;
+      } else {
+        showNotification(res.message || 'Error al eliminar naves', 'error');
+        return false;
+      }
+    } catch (err: any) {
+      showNotification(err.message || 'Error al eliminar naves', 'error');
+      return false;
+    }
+  };
+
+  const deleteAllNaves = async (): Promise<boolean> => {
+    try {
+      const res = await api.deleteAllNaves(currentUser.name);
+      if (res.success) {
+        showNotification(res.message, 'success');
+        setSelectedNaveId(null);
+        await refreshData();
+        return true;
+      } else {
+        showNotification(res.message || 'Error al eliminar todas las naves', 'error');
+        return false;
+      }
+    } catch (err: any) {
+      showNotification(err.message || 'Error al eliminar todas las naves', 'error');
+      return false;
+    }
+  };
+
+  const resetDefaultNaves = async (): Promise<boolean> => {
+    try {
+      const res = await api.resetDefaultNaves(currentUser.name);
+      if (res.success) {
+        showNotification(res.message, 'success');
+        await refreshData();
+        return true;
+      } else {
+        showNotification(res.message || 'Error al restablecer naves', 'error');
+        return false;
+      }
+    } catch (err: any) {
+      showNotification(err.message || 'Error al restablecer naves', 'error');
+      return false;
+    }
+  };
+
+  const configureEsp32 = async (naveId: string, config: Partial<Esp32Config>): Promise<boolean> => {
+    try {
+      const res = await api.configureEsp32(naveId, config, currentUser.name);
+      if (res.success) {
+        showNotification(res.message, 'success');
+        await refreshData();
+        return true;
+      } else {
+        showNotification('Error al configurar ESP32', 'error');
+        return false;
+      }
+    } catch (err: any) {
+      showNotification(err.message || 'Error al configurar ESP32', 'error');
+      return false;
+    }
+  };
+
+  const configureEsp32Bulk = async (params: {
+    role: Esp32Role;
+    target?: 'ALL' | 'SELECTED';
+    ids?: string[];
+    config?: Partial<Esp32Config>;
+  }): Promise<boolean> => {
+    try {
+      const res = await api.configureEsp32Bulk({
+        ...params,
+        user: currentUser.name
+      });
+      if (res.success) {
+        showNotification(res.message, 'success');
+        await refreshData();
+        return true;
+      } else {
+        showNotification('Error al aplicar configuración masiva', 'error');
+        return false;
+      }
+    } catch (err: any) {
+      showNotification(err.message || 'Error al aplicar configuración masiva', 'error');
+      return false;
+    }
+  };
+
+  const testEsp32Connection = async (naveId: string) => {
+    try {
+      const diag = await api.testEsp32Connection(naveId);
+      return diag;
+    } catch (err: any) {
+      return {
+        success: false,
+        deviceId: `ESP32_${naveId}`,
+        connected: false,
+        pingMs: 0,
+        signalRssi: -120,
+        heapFreeBytes: 0,
+        voltage: 0,
+        message: 'Fallo al comunicarse con el microcontrolador.'
+      };
+    }
+  };
+
+  const addHardwareModule = async (naveId: string, moduleData: Partial<HardwareModule>): Promise<boolean> => {
+    try {
+      const res = await api.addHardwareModule(naveId, moduleData, currentUser.name);
+      if (res.success) {
+        showNotification(res.message, 'success');
+        await refreshData();
+        return true;
+      } else {
+        showNotification(res.message || 'Error al agregar módulo', 'error');
+        return false;
+      }
+    } catch (err: any) {
+      showNotification(err.message || 'Error al agregar módulo de hardware', 'error');
+      return false;
+    }
+  };
+
+  const removeHardwareModule = async (naveId: string, moduleId: string): Promise<boolean> => {
+    try {
+      const res = await api.removeHardwareModule(naveId, moduleId, currentUser.name);
+      if (res.success) {
+        showNotification(res.message, 'success');
+        await refreshData();
+        return true;
+      } else {
+        showNotification(res.message || 'Error al desvincular módulo', 'error');
+        return false;
+      }
+    } catch (err: any) {
+      showNotification(err.message || 'Error al desvincular módulo de hardware', 'error');
+      return false;
+    }
+  };
+
+  const provisionDevice = async (data: {
+    type: 'SENSOR_ANTENNA' | 'CONTROL_PANEL' | 'HYBRID';
+    name: string;
+    sector: string;
+    naveId?: string;
+    devEui?: string;
+  }): Promise<boolean> => {
+    try {
+      const res = await api.provisionDevice({ ...data, user: currentUser.name });
+      if (res.success) {
+        showNotification(res.message, 'success');
+        await refreshData();
+        return true;
+      } else {
+        showNotification(res.message || 'Error al aprovisionar dispositivo', 'error');
+        return false;
+      }
+    } catch (err: any) {
+      showNotification(err.message || 'Error al aprovisionar dispositivo', 'error');
+      return false;
+    }
+  };
+
   return (
     <FarmContext.Provider value={{
       naves,
@@ -169,10 +438,24 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
       requestManualIrrigation,
       confirmManualIrrigation,
       stopIrrigation,
+      startAllIrrigations,
+      stopAllIrrigations,
       irrigationModalTarget,
       setIrrigationModalTarget,
+      esp32ModalTarget,
+      setEsp32ModalTarget,
+      configureEsp32,
+      configureEsp32Bulk,
+      testEsp32Connection,
+      addHardwareModule,
+      removeHardwareModule,
+      provisionDevice,
       recognizeAlert,
       resolveAlert,
+      deleteNave,
+      deleteMultipleNaves,
+      deleteAllNaves,
+      resetDefaultNaves,
       searchTerm,
       setSearchTerm,
       statusFilter,
