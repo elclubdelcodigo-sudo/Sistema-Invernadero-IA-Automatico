@@ -1,0 +1,6 @@
+{
+  "name": "VEGALINK",
+  "description": "Plataforma IoT agrícola profesional para monitoreo y automatización de hasta 125+ naves e invernaderos con control local ESP32, LoRaWAN y telemetría en tiempo real.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

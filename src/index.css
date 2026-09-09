@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@custom-variant light (&:where(.light, .light *));
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --takii-red: #E52421;
+  --takii-blue: #0082CA;
+  --takii-yellow: #F5A81C;
+  --takii-dark: #0B0F17;
+}
+
+html.light {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+/* Takii Seed corporate color utility classes */
+.text-takii-red {
+  color: #E52421;
+}
+
+.text-takii-blue {
+  color: #0082CA;
+}
+
+.text-takii-yellow {
+  color: #F5A81C;
+}
+
+.bg-takii-red {
+  background-color: #E52421;
+}
+
+.bg-takii-blue {
+  background-color: #0082CA;
+}
+
+.bg-takii-yellow {
+  background-color: #F5A81C;
+}
+
+.border-takii-red {
+  border-color: #E52421;
+}
+
+.border-takii-blue {
+  border-color: #0082CA;
+}
+
+.border-takii-yellow {
+  border-color: #F5A81C;
+}
+
+::selection {
+  background-color: #E52421;
+  color: #ffffff;
+}
