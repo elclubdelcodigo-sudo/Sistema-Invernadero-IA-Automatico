@@ -32,17 +32,26 @@ export const Header: React.FC<HeaderProps> = ({ toggleSidebar, isSidebarOpen }) 
 
   return (
     <header id="main-header" className="sticky top-0 z-30 bg-slate-900/90 dark:bg-slate-900/90 light:bg-white/90 backdrop-blur border-b border-slate-800 light:border-slate-200 transition-colors">
-      <div className="px-4 py-3 flex items-center justify-between gap-4">
+      <div className="max-w-[1600px] mx-auto w-full px-4 py-3 flex items-center justify-between gap-4">
         {/* Left side: Hamburger + Logo */}
         <div className="flex items-center gap-3">
           <button
             id="btn-toggle-sidebar"
             onClick={toggleSidebar}
-            className="p-2 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 light:hover:bg-slate-100 light:hover:text-slate-900 transition-colors"
-            title="Abrir/Cerrar Menú"
-            aria-label="Abrir Menú"
+            className={`p-2 rounded-lg transition-all flex items-center gap-2 ${
+              !isSidebarOpen
+                ? 'bg-emerald-600 text-white font-bold shadow-md shadow-emerald-600/20 ring-1 ring-emerald-400/50'
+                : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800 light:hover:bg-slate-100 light:hover:text-slate-900'
+            }`}
+            title={isSidebarOpen ? "Ocultar menú lateral" : "Mostrar menú lateral"}
+            aria-label={isSidebarOpen ? "Ocultar Menú" : "Mostrar Menú"}
           >
             <Menu className="w-5 h-5" />
+            {!isSidebarOpen && (
+              <span className="text-xs font-bold hidden sm:inline-block pr-1">
+                Mostrar menú
+              </span>
+            )}
           </button>
 
           <div className="flex items-center gap-3">

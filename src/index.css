@@ -59,3 +59,36 @@ html.dark {
   background-color: #E52421;
   color: #ffffff;
 }
+
+/* Water Tank (Estanque de Agua) Animation Utilities */
+@keyframes liquidPulse {
+  0%, 100% {
+    transform: scaleY(1) translateY(0%);
+    opacity: 0.92;
+  }
+  50% {
+    transform: scaleY(1.05) translateY(-2%);
+    opacity: 1;
+  }
+}
+
+@keyframes surfaceRipple {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-liquid-fill {
+  animation: liquidPulse 2.2s ease-in-out infinite;
+}
+
+.animate-water-surface {
+  background-size: 200% 200%;
+  animation: surfaceRipple 3s ease infinite;
+}

@@ -150,6 +150,10 @@ export interface Alert {
     | 'Error del controlador';
   severity: AlertSeverity;
   description: string;
+  causeReason?: string; // Causa raíz por la cual se gatilló la alarma
+  triggerCondition?: string; // Umbral o regla vulnerada
+  sensorValueAtTrigger?: string; // Valor de telemetría medido durante el evento
+  recommendedAction?: string; // Acción correctiva recomendada
   state: AlertState;
   timestamp: string;
   recognizedBy?: string;

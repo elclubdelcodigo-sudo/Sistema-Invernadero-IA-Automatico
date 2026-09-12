@@ -69,6 +69,10 @@ interface FarmContextType {
   // Feedback Notification
   notification: { message: string; type: 'success' | 'error' | 'info' } | null;
   showNotification: (message: string, type?: 'success' | 'error' | 'info') => void;
+
+  // Production Mode
+  isProductionMode: boolean;
+  setIsProductionMode: (isProd: boolean) => void;
 }
 
 const FarmContext = createContext<FarmContextType | undefined>(undefined);
@@ -83,6 +87,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [irrigationModalTarget, setIrrigationModalTarget] = useState<Nave | null>(null);
   const [esp32ModalTarget, setEsp32ModalTarget] = useState<Esp32ModalTarget | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isProductionMode, setIsProductionMode] = useState<boolean>(false);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -463,7 +468,9 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
       sectorFilter,
       setSectorFilter,
       notification,
-      showNotification
+      showNotification,
+      isProductionMode,
+      setIsProductionMode
     }}>
       {children}
     </FarmContext.Provider>

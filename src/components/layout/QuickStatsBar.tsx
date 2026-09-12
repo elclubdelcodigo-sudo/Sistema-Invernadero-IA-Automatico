@@ -1,9 +1,9 @@
 import React from 'react';
 import { useFarm } from '../../context/FarmContext';
-import { Activity, AlertTriangle, Droplet, Radio, CheckCircle, WifiOff } from 'lucide-react';
+import { Activity, AlertTriangle, Droplet, Radio, CheckCircle, WifiOff, Server } from 'lucide-react';
 
 export const QuickStatsBar: React.FC = () => {
-  const { metrics, alerts, naves, setStatusFilter } = useFarm();
+  const { metrics, alerts, naves, setStatusFilter, isProductionMode, setIsProductionMode } = useFarm();
 
   if (!metrics) return null;
 
@@ -24,6 +24,18 @@ export const QuickStatsBar: React.FC = () => {
           </span>
           <span className="text-slate-500 dark:text-slate-400 light:text-slate-500 hidden sm:inline">•</span>
           <span className="text-slate-400 light:text-slate-600 hidden sm:inline">Última telemetría: {metrics.lastCommunicationTime}</span>
+          
+          <button 
+            onClick={() => setIsProductionMode(!isProductionMode)}
+            className={`ml-2 flex items-center gap-1 px-2 py-0.5 rounded text-[10px] uppercase font-bold border transition-colors ${
+              isProductionMode 
+                ? 'bg-rose-500/20 text-rose-400 border-rose-500/50' 
+                : 'bg-indigo-500/20 text-indigo-400 border-indigo-500/50'
+            }`}
+          >
+            <Server className="w-3 h-3" />
+            {isProductionMode ? 'Modo Producción' : 'Modo Prueba'}
+          </button>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-4 font-mono">

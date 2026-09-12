@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Nave, IrrigationRule } from '../../types';
 import { useFarm } from '../../context/FarmContext';
 import { useAuth } from '../../context/AuthContext';
@@ -12,6 +12,7 @@ import {
   Zap,
   Activity,
   CheckCircle,
+  ShieldAlert,
   AlertTriangle,
   Play,
   Square,
@@ -116,9 +117,18 @@ export const NaveDetailModal: React.FC<NaveDetailModalProps> = ({ nave, onClose 
     deleteNave,
     setEsp32ModalTarget,
     configureEsp32,
-    testEsp32Connection
+    testEsp32Connection,
+    isProductionMode,
+    alerts,
+    recognizeAlert,
+    resolveAlert
   } = useFarm();
   const { canPerformIrrigation, canConfigureDevices, currentUser } = useAuth();
+
+  // Active alerts specifically for this nave
+  const activeNaveAlerts = useMemo(() => {
+    return alerts.filter(a => a.greenhouseId === nave.id && a.state !== 'RESUELTA');
+  }, [alerts, nave.id]);
 
   // Local state for automation rule editing
   const [rule, setRule] = useState<IrrigationRule>({ ...nave.automationRule });
@@ -204,68 +214,75 @@ export const NaveDetailModal: React.FC<NaveDetailModalProps> = ({ nave, onClose 
     error?: string;
   } | null>(null);
 
-  // 1. DATASET: DÍAS (Últimos 8 días con registro diario)
-  const diasTempData = [
-    { time: '02 Sep', tiempoReal: Number((nave.temperature - 1.8).toFixed(1)), optimo: 22.5 },
-    { time: '03 Sep', tiempoReal: Number((nave.temperature - 2.3).toFixed(1)), optimo: 22.5 },
-    { time: '04 Sep', tiempoReal: Number((nave.temperature + 0.9).toFixed(1)), optimo: 23.0 },
-    { time: '05 Sep', tiempoReal: Number((nave.temperature + 1.4).toFixed(1)), optimo: 23.0 },
-    { time: '06 Sep', tiempoReal: Number((nave.temperature - 0.5).toFixed(1)), optimo: 23.0 },
-    { time: '07 Sep', tiempoReal: Number((nave.temperature + 1.1).toFixed(1)), optimo: 23.0 },
-    { time: '08 Sep', tiempoReal: Number((nave.temperature - 0.2).toFixed(1)), optimo: 23.0 },
-    { time: '09 Sep (Hoy)', tiempoReal: Number(nave.temperature.toFixed(1)), optimo: optimalTemp }
-  ];
+  // Generador de datos pseudoaleatorios para el Modo Producción
+  const generateRealisticData = (
+    type: 'dias' | 'meses' | 'anos', 
+    baseValue: number, 
+    optimo: number, 
+    isTemp: boolean
+  ) => {
+    const data = [];
+    const variance = isTemp ? 4 : 15; // Variación térmica vs hídrica
+    
+    if (type === 'dias') {
+      const days = ['02 Sep', '03 Sep', '04 Sep', '05 Sep', '06 Sep', '07 Sep', '08 Sep', '09 Sep (Hoy)'];
+      days.forEach((day, i) => {
+        // Generar una curva sinusoidal para simular frentes climáticos + ruido
+        const trend = Math.sin(i * 0.8) * (variance / 2);
+        const noise = isProductionMode ? (Math.sin(nave.id.charCodeAt(0) + i) * (variance / 3)) : 0;
+        let val = baseValue + trend + noise;
+        if (i === days.length - 1) val = baseValue; // El último día debe ser igual al valor actual
+        
+        data.push({
+          time: day,
+          tiempoReal: isTemp ? Number(val.toFixed(1)) : Math.round(val),
+          optimo: optimo
+        });
+      });
+    } else if (type === 'meses') {
+      const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep (Actual)'];
+      months.forEach((month, i) => {
+        // Estacionalidad: Más frío/húmedo en invierno (Jun-Jul)
+        const seasonal = isTemp ? Math.cos((i / 11) * Math.PI * 2) * 5 : Math.sin((i / 11) * Math.PI * 2) * -10;
+        const noise = isProductionMode ? (Math.cos(nave.id.charCodeAt(0) + i) * (variance / 2)) : 0;
+        let val = baseValue + seasonal + noise;
+        if (i === months.length - 1) val = baseValue;
+        
+        data.push({
+          time: month,
+          tiempoReal: isTemp ? Number(val.toFixed(1)) : Math.round(val),
+          optimo: optimo
+        });
+      });
+    } else {
+      const years = ['2023', '2024', '2025', '2026 (En Curso)'];
+      years.forEach((year, i) => {
+        // Tendencia macro
+        const trend = (i - 2) * (isTemp ? 0.3 : -1.5);
+        const noise = isProductionMode ? (Math.sin(nave.id.charCodeAt(0) * i) * (variance / 4)) : 0;
+        let val = baseValue + trend + noise;
+        if (i === years.length - 1) val = baseValue;
+        
+        data.push({
+          time: year,
+          tiempoReal: isTemp ? Number(val.toFixed(1)) : Math.round(val),
+          optimo: optimo
+        });
+      });
+    }
+    return data;
+  };
 
-  const diasHumData = [
-    { time: '02 Sep', tiempoReal: Math.min(95, Math.max(30, Math.round(nave.humidity + 7))), optimo: 65 },
-    { time: '03 Sep', tiempoReal: Math.min(95, Math.max(30, Math.round(nave.humidity + 9))), optimo: 65 },
-    { time: '04 Sep', tiempoReal: Math.min(95, Math.max(30, Math.round(nave.humidity - 4))), optimo: 65 },
-    { time: '05 Sep', tiempoReal: Math.min(95, Math.max(30, Math.round(nave.humidity - 6))), optimo: 65 },
-    { time: '06 Sep', tiempoReal: Math.min(95, Math.max(30, Math.round(nave.humidity + 2))), optimo: 65 },
-    { time: '07 Sep', tiempoReal: Math.min(95, Math.max(30, Math.round(nave.humidity - 3))), optimo: 65 },
-    { time: '08 Sep', tiempoReal: Math.min(95, Math.max(30, Math.round(nave.humidity + 1))), optimo: 65 },
-    { time: '09 Sep (Hoy)', tiempoReal: Math.round(nave.humidity), optimo: optimalHum }
-  ];
-
-  // 2. DATASET: MESES (Historial de 9 meses: Enero a Septiembre 2026)
-  const mesesTempData = [
-    { time: 'Ene', tiempoReal: 17.8, optimo: 19.5 },
-    { time: 'Feb', tiempoReal: 18.6, optimo: 20.0 },
-    { time: 'Mar', tiempoReal: 20.4, optimo: 21.0 },
-    { time: 'Abr', tiempoReal: 21.9, optimo: 22.0 },
-    { time: 'May', tiempoReal: 23.5, optimo: 23.0 },
-    { time: 'Jun', tiempoReal: 25.8, optimo: 24.5 },
-    { time: 'Jul', tiempoReal: 27.2, optimo: 25.0 },
-    { time: 'Ago', tiempoReal: 26.9, optimo: 25.0 },
-    { time: 'Sep (Actual)', tiempoReal: Number(nave.temperature.toFixed(1)), optimo: optimalTemp }
-  ];
-
-  const mesesHumData = [
-    { time: 'Ene', tiempoReal: 74, optimo: 70 },
-    { time: 'Feb', tiempoReal: 71, optimo: 68 },
-    { time: 'Mar', tiempoReal: 67, optimo: 65 },
-    { time: 'Abr', tiempoReal: 65, optimo: 65 },
-    { time: 'May', tiempoReal: 63, optimo: 65 },
-    { time: 'Jun', tiempoReal: 59, optimo: 62 },
-    { time: 'Jul', tiempoReal: 56, optimo: 60 },
-    { time: 'Ago', tiempoReal: 58, optimo: 60 },
-    { time: 'Sep (Actual)', tiempoReal: Math.round(nave.humidity), optimo: optimalHum }
-  ];
-
-  // 3. DATASET: AÑOS (Historial plurianual 2023 - 2026)
-  const anosTempData = [
-    { time: '2023', tiempoReal: 22.3, optimo: 22.5 },
-    { time: '2024', tiempoReal: 23.1, optimo: 22.5 },
-    { time: '2025', tiempoReal: 23.9, optimo: 22.8 },
-    { time: '2026 (En Curso)', tiempoReal: Number(nave.temperature.toFixed(1)), optimo: optimalTemp }
-  ];
-
-  const anosHumData = [
-    { time: '2023', tiempoReal: 68, optimo: 65 },
-    { time: '2024', tiempoReal: 66, optimo: 65 },
-    { time: '2025', tiempoReal: 63, optimo: 65 },
-    { time: '2026 (En Curso)', tiempoReal: Math.round(nave.humidity), optimo: optimalHum }
-  ];
+  const { diasTempData, diasHumData, mesesTempData, mesesHumData, anosTempData, anosHumData } = useMemo(() => {
+    return {
+      diasTempData: generateRealisticData('dias', nave.temperature, optimalTemp, true),
+      diasHumData: generateRealisticData('dias', nave.humidity, optimalHum, false),
+      mesesTempData: generateRealisticData('meses', nave.temperature, optimalTemp, true),
+      mesesHumData: generateRealisticData('meses', nave.humidity, optimalHum, false),
+      anosTempData: generateRealisticData('anos', nave.temperature, optimalTemp, true),
+      anosHumData: generateRealisticData('anos', nave.humidity, optimalHum, false)
+    };
+  }, [nave.id, nave.temperature, nave.humidity, optimalTemp, optimalHum, isProductionMode]);
 
   // Resolve active chart datasets based on selected time resolution
   const activeTemperaturaChartData =
@@ -589,6 +606,105 @@ export const NaveDetailModal: React.FC<NaveDetailModalProps> = ({ nave, onClose 
                 <span>Eliminar Nave</span>
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Active Alarm Cause Diagnostic Banner (Displayed when nave has alarm status or active alert) */}
+        {(nave.status === 'ALARMA' || activeNaveAlerts.length > 0) && (
+          <div className="p-4 bg-rose-950/80 light:bg-rose-50 border-b border-rose-500/50 space-y-3 animate-fadeIn">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 font-bold text-rose-300 light:text-rose-900 text-xs uppercase tracking-wider">
+                <AlertTriangle className="w-4.5 h-4.5 text-rose-400 animate-bounce" />
+                <span>Alerta Técnica / Anomalía Activa en {nave.id}</span>
+              </div>
+              {activeNaveAlerts.length > 0 && (
+                <div className="flex items-center gap-2">
+                  {activeNaveAlerts[0].state === 'ACTIVA' && (
+                    <button
+                      type="button"
+                      onClick={() => recognizeAlert(activeNaveAlerts[0].id)}
+                      disabled={!canPerformIrrigation}
+                      className="px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shadow-sm transition-all"
+                    >
+                      Reconocer Alarma
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => resolveAlert(activeNaveAlerts[0].id)}
+                    disabled={!canPerformIrrigation}
+                    className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all"
+                  >
+                    Resolver Alarma
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Render clear diagnostic reason for each alert */}
+            {activeNaveAlerts.length > 0 ? (
+              activeNaveAlerts.map(alt => (
+                <div key={alt.id} className="p-3.5 rounded-xl bg-slate-950 light:bg-white border border-rose-500/40 text-xs space-y-2 shadow-lg">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 light:border-slate-200 pb-2">
+                    <span className="font-bold text-rose-400 light:text-rose-700 text-sm flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4 text-rose-400" />
+                      {alt.type}
+                    </span>
+                    <span className="font-mono text-[11px] text-slate-400">
+                      Gatillada: {alt.timestamp.replace('T', ' ').substring(0, 19)}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="font-bold text-rose-300 light:text-rose-900 block text-[11px] uppercase tracking-wider mb-1">
+                      ¿Por qué se activó esta alarma? (Diagnóstico Causa Raíz):
+                    </span>
+                    <p className="text-slate-100 light:text-slate-900 font-medium leading-relaxed bg-rose-950/40 light:bg-rose-100/60 p-2.5 rounded-lg border border-rose-500/20 text-xs">
+                      {alt.causeReason || alt.description}
+                    </p>
+                  </div>
+
+                  {alt.triggerCondition && (
+                    <div className="text-[11px] font-mono text-slate-300 light:text-slate-700 bg-slate-900 light:bg-slate-100 p-2 rounded-lg border border-slate-800 light:border-slate-300">
+                      <strong>Regla / Umbral Vulnerado:</strong> {alt.triggerCondition}
+                    </div>
+                  )}
+
+                  {alt.sensorValueAtTrigger && (
+                    <div className="text-[11px] font-mono text-cyan-300 light:text-cyan-800 bg-cyan-950/40 light:bg-cyan-50 p-2 rounded-lg border border-cyan-500/20 flex items-center gap-1.5">
+                      <Gauge className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                      <span><strong>Telemetría durante el Disparo:</strong> {alt.sensorValueAtTrigger}</span>
+                    </div>
+                  )}
+
+                  {alt.recommendedAction && (
+                    <div className="text-[11px] text-emerald-300 light:text-emerald-900 bg-emerald-950/30 light:bg-emerald-50 p-2 rounded-lg border border-emerald-500/20 flex items-start gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold text-emerald-400 light:text-emerald-800">Acción Técnico-Agronómica Sugerida:</span>
+                        <span className="ml-1 text-slate-200 light:text-slate-800">{alt.recommendedAction}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="p-3.5 rounded-xl bg-slate-950 light:bg-white border border-rose-500/40 text-xs space-y-2 shadow-lg">
+                <div className="font-bold text-rose-400 light:text-rose-700 text-sm flex items-center gap-2 border-b border-slate-800 light:border-slate-200 pb-2">
+                  <ShieldAlert className="w-4 h-4 text-rose-400" />
+                  ¿Por qué se activó esta alarma? (Causa Raíz)
+                </div>
+                <p className="text-slate-100 light:text-slate-900 font-medium leading-relaxed bg-rose-950/40 light:bg-rose-100/60 p-2.5 rounded-lg border border-rose-500/20 text-xs">
+                  {nave.flowRate === 0 && nave.valveStatus === 'ABIERTA'
+                    ? 'Anomalía de flujo hidráulico: Electroválvula abierta por controlador pero el caudalímetro registra 0.0 L/min. Posible bomba de riego apagada o tubería obstruida.'
+                    : nave.temperature > 32
+                    ? `Estrés térmico: La temperatura interna registra ${nave.temperature}°C, superando el máximo de confort.`
+                    : nave.soilMoisture1 < 28
+                    ? `Déficit hídrico: La humedad de suelo en estrato 1 registra ${nave.soilMoisture1}%, por debajo del umbral de riego.`
+                    : 'Anomalía reportada por la antena de sensores / controlador local ESP32.'}
+                </p>
+              </div>
+            )}
           </div>
         )}
 

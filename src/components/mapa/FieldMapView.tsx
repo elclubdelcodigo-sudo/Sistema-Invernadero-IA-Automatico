@@ -232,9 +232,9 @@ export const FieldMapView: React.FC = () => {
 
     if (viewMode === 'irrigation') {
       if (nave.status === 'REGANDO') {
-        return 'bg-blue-600 text-white border-blue-300 ring-2 ring-blue-400/80 shadow-lg shadow-blue-500/50 animate-pulse';
+        return 'bg-gradient-to-t from-blue-700 via-cyan-500 to-sky-400 animate-liquid-fill animate-water-surface text-white font-black border-cyan-300 ring-2 ring-cyan-400 shadow-lg shadow-cyan-500/50';
       }
-      return 'bg-slate-800/80 text-slate-400 border-slate-700/60 opacity-60';
+      return 'bg-slate-950/90 text-slate-400 border-slate-800 opacity-70';
     }
 
     if (viewMode === 'temperature') {
